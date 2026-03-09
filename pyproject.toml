@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "purgepilot"
+version = "0.1.0"
+description = "Scan folders and manage purge candidates"
+requires-python = ">=3.9"
+
+[project.scripts]
+purgepilot = "purgepilot.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["purgepilot*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
