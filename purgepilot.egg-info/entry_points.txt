@@ -1,2 +1,0 @@
-[console_scripts]
-purgepilot = purgepilot.cli:main
