@@ -1,16 +1,18 @@
-# Python bytecode
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
+*$py.class
 
-# Build / distribution
+# Distribution / packaging
 *.egg-info/
 dist/
 build/
+*.egg
 
 # Virtual environments
 .venv/
 venv/
 env/
 
-# Pytest cache
+# Pytest
 .pytest_cache/
