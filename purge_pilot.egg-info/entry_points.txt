@@ -1,0 +1,2 @@
+[console_scripts]
+purge-pilot = purge_pilot.main:main
