@@ -43,7 +43,7 @@ below cover a **CPU-only** setup (no NVIDIA/AMD GPU required).
 
 | Platform | Command |
 |---|---|
-| **Linux** | `curl -fsSL https://ollama.com/install.sh \| sh` |
+| **Linux** | `curl -fsSL https://ollama.com/install.sh \| OLLAMA_INSTALL_DIR=~/.local sh` |
 | **macOS** | Download the `.dmg` from <https://ollama.com/download> and drag it to Applications |
 | **Windows** | Download the installer from <https://ollama.com/download> and run it |
 
