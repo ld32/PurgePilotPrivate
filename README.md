@@ -33,6 +33,88 @@ pip install ".[dev]"
 
 ---
 
+## Local LLM server (Ollama – CPU-only setup)
+
+PurgePilot works with any OpenAI-compatible endpoint, but the easiest
+self-hosted option is [Ollama](https://ollama.com).  The instructions
+below cover a **CPU-only** setup (no NVIDIA/AMD GPU required).
+
+### 1 – Install Ollama
+
+| Platform | Command |
+|---|---|
+| **Linux** | `curl -fsSL https://ollama.com/install.sh \| sh` |
+| **macOS** | Download the `.dmg` from <https://ollama.com/download> and drag it to Applications |
+| **Windows** | Download the installer from <https://ollama.com/download> and run it |
+
+### 2 – Choose a model that fits your RAM
+
+When running on CPU, the model weights must fit entirely in system RAM.
+Use the table below as a starting point:
+
+| Available RAM | Recommended model | Approx. size on disk |
+|---|---|---|
+| 8 GB | `phi3:mini` (3.8 B) | ~2.3 GB |
+| 16 GB | `llama3.2:3b` (3 B) | ~2.0 GB |
+| 32 GB | `llama3.1:8b` (8 B) | ~4.7 GB |
+| 64 GB+ | `llama3.1:70b-instruct-q4_K_M` (70 B, 4-bit) | ~40 GB |
+
+> **Tip:** 4-bit quantised models (the default `q4_K_M` variants) use
+> roughly half the RAM of their full-precision counterparts and run at
+> an acceptable speed on modern CPUs.
+
+Pull the model before first use:
+
+```bash
+ollama pull phi3:mini          # replace with your chosen model
+```
+
+### 3 – Tune memory usage
+
+Set these environment variables **before** starting Ollama to control
+how much RAM it may consume:
+
+```bash
+# Keep only one model loaded at a time (saves RAM when you switch models)
+export OLLAMA_MAX_LOADED_MODELS=1
+
+# Process one request at a time (reduces peak RAM on low-memory hosts)
+export OLLAMA_NUM_PARALLEL=1
+
+# Unload the model from RAM after 5 minutes of inactivity
+export OLLAMA_KEEP_ALIVE=5m
+```
+
+On **Windows** set these as user environment variables via
+*System Properties → Advanced → Environment Variables*, or prepend them
+to the `ollama serve` command in PowerShell:
+
+```powershell
+$env:OLLAMA_MAX_LOADED_MODELS=1
+$env:OLLAMA_NUM_PARALLEL=1
+$env:OLLAMA_KEEP_ALIVE="5m"
+ollama serve
+```
+
+### 4 – Start the server
+
+```bash
+ollama serve
+```
+
+Ollama listens on `http://localhost:11434` by default.  Leave this
+terminal open (or run it as a system service) while using PurgePilot.
+
+### 5 – Point PurgePilot at the local server
+
+```bash
+purge-pilot /path/to/data \
+  --api-url http://localhost:11434/v1 \
+  --model phi3:mini
+```
+
+---
+
 ## Usage
 
 ```
