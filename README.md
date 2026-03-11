@@ -21,6 +21,21 @@ confident each file or sub-folder can be safely purged.
 
 ## Installation
 
+### Recommended: conda (installs Ollama automatically)
+
+```bash
+git clone https://github.com/ld32/PurgePilotPrivate.git
+cd PurgePilotPrivate
+conda env create -f environment.yml
+conda activate purge-pilot
+```
+
+The `environment.yml` file creates a self-contained conda environment that
+includes **Ollama** (from [conda-forge](https://conda-forge.org/)) together
+with all Python dependencies and the `purge-pilot` package itself.
+
+### Alternative: pip only (bring your own Ollama)
+
 ```bash
 git clone https://github.com/ld32/PurgePilotPrivate.git
 cd PurgePilotPrivate
@@ -44,6 +59,12 @@ self-hosted option is [Ollama](https://ollama.com).  The instructions
 below cover a **CPU-only** setup (no NVIDIA/AMD GPU required).
 
 ### 1 – Install Ollama
+
+**Using conda (recommended)** – Ollama is installed automatically when you
+create the conda environment (see [Installation](#installation) above).
+Once the environment is active you can run `ollama` directly.
+
+**Manual installation** (if you are not using conda):
 
 | Platform | Command |
 |---|---|
@@ -101,6 +122,14 @@ ollama serve
 ```
 
 ### 4 – Start the server
+
+If you used the conda environment, activate it first:
+
+```bash
+conda activate purge-pilot
+```
+
+Then start Ollama:
 
 ```bash
 ollama serve
@@ -215,5 +244,6 @@ tests/
   test_scanner.py
   test_llm_client.py
   test_main.py
+environment.yml    – conda environment (includes Ollama)
 pyproject.toml
 ```
