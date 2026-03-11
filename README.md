@@ -22,12 +22,16 @@ confident each file or sub-folder can be safely purged.
 ## Installation
 
 ```bash
+git clone https://github.com/ld32/PurgePilotPrivate.git
+cd PurgePilotPrivate
 pip install .
 ```
 
 Or install with development dependencies (pytest, etc.):
 
 ```bash
+git clone https://github.com/ld32/PurgePilotPrivate.git
+cd PurgePilotPrivate
 pip install ".[dev]"
 ```
 
