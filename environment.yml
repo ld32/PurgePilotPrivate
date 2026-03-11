@@ -1,0 +1,11 @@
+name: purge-pilot
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.9
+  - requests>=2.31.0
+  - ollama
+  - pip
+  - pip:
+      - ".[dev]"
