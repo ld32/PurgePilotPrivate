@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import requests
 
@@ -67,6 +67,18 @@ Each element in the response array must have exactly these keys:
 
 Respond with ONLY the JSON array and nothing else."""
 
+_REPAIR_SYSTEM_PROMPT = """You repair malformed model output.
+You will receive a prior assistant response that should have been a JSON array.
+
+Return ONLY a valid JSON array.
+Each element in the array must have exactly these keys:
+    \"path\"       - the exact path string from the input when available
+    \"confidence\" - a float between 0.0 and 1.0
+    \"reason\"     - one concise sentence
+
+Do not include markdown, code fences, or explanatory text.
+If the prior response does not contain enough information to build the array, return []."""
+
 
 def estimate_purge_confidence(
     scan_result: ScanResult,
@@ -115,12 +127,25 @@ def estimate_purge_confidence(
     endpoint = api_url.rstrip("/") + "/chat/completions"
     logger.debug("POST %s  model=%s  entries=%d", endpoint, model, len(scan_result.entries))
 
-    response = requests.post(endpoint, headers=headers, json=payload, timeout=timeout)
-    response.raise_for_status()
+    content = _request_completion(
+        endpoint=endpoint,
+        headers=headers,
+        payload=payload,
+        timeout=timeout,
+    )
 
-    raw = response.json()
-    content = raw["choices"][0]["message"]["content"]
-    estimates = _parse_estimates(content)
+    try:
+        estimates = _parse_estimates(content)
+    except ValueError as exc:
+        logger.warning("LLM returned malformed JSON; requesting repair: %s", exc)
+        repaired_content = _repair_completion(
+            endpoint=endpoint,
+            headers=headers,
+            model=model,
+            timeout=timeout,
+            original_content=content,
+        )
+        estimates = _parse_estimates(repaired_content)
 
     return PurgeReport(root=scan_result.root, estimates=estimates)
 
@@ -128,6 +153,67 @@ def estimate_purge_confidence(
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+def _request_completion(
+    *,
+    endpoint: str,
+    headers: Dict[str, str],
+    payload: Dict[str, Any],
+    timeout: int,
+) -> str:
+    """Send one chat completion request and return normalized message content."""
+    response = requests.post(endpoint, headers=headers, json=payload, timeout=timeout)
+    response.raise_for_status()
+
+    raw = response.json()
+    content = raw["choices"][0]["message"]["content"]
+    return _normalize_content(content)
+
+
+def _repair_completion(
+    *,
+    endpoint: str,
+    headers: Dict[str, str],
+    model: str,
+    timeout: int,
+    original_content: str,
+) -> str:
+    """Ask the model to convert its prior response into a strict JSON array."""
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": _REPAIR_SYSTEM_PROMPT},
+            {"role": "user", "content": original_content},
+        ],
+        "temperature": 0,
+    }
+    return _request_completion(
+        endpoint=endpoint,
+        headers=headers,
+        payload=payload,
+        timeout=timeout,
+    )
+
+
+def _normalize_content(content: Any) -> str:
+    """Normalize string or structured message content into plain text."""
+    if isinstance(content, str):
+        return content
+
+    if isinstance(content, list):
+        parts: List[str] = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+                continue
+            if isinstance(item, dict) and item.get("type") == "text":
+                text = item.get("text")
+                if isinstance(text, str):
+                    parts.append(text)
+        if parts:
+            return "\n".join(parts)
+
+    raise ValueError(f"Unsupported LLM message content type: {type(content).__name__}")
 
 def _parse_estimates(content: str) -> List[PurgeEstimate]:
     """Parse the LLM response content into a list of :class:`PurgeEstimate`."""
@@ -139,6 +225,10 @@ def _parse_estimates(content: str) -> List[PurgeEstimate]:
         # Remove opening fence (e.g. ```json) and closing fence
         lines = [l for l in lines if not l.startswith("```")]
         content = "\n".join(lines)
+
+    extracted = _extract_json_array(content)
+    if extracted is not None:
+        content = extracted
 
     try:
         data = json.loads(content)
@@ -164,3 +254,22 @@ def _parse_estimates(content: str) -> List[PurgeEstimate]:
             logger.warning("Skipping malformed LLM response item %r: %s", item, exc)
 
     return estimates
+
+
+def _extract_json_array(content: str) -> str | None:
+    """Return the first decodable JSON array embedded in *content*, if any."""
+    decoder = json.JSONDecoder()
+
+    for index, char in enumerate(content):
+        if char != "[":
+            continue
+
+        try:
+            parsed, end = decoder.raw_decode(content, idx=index)
+        except json.JSONDecodeError:
+            continue
+
+        if isinstance(parsed, list):
+            return content[index:end]
+
+    return None

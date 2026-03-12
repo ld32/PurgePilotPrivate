@@ -93,6 +93,14 @@ def test_parse_estimates_strips_code_fences():
     assert estimates[0].path == "x"
 
 
+def test_parse_estimates_extracts_array_from_wrapped_text():
+    inner = json.dumps([{"path": "x", "confidence": 0.5, "reason": "maybe"}])
+    raw = f"Here is the result you asked for:\n{inner}\nThanks."
+    estimates = _parse_estimates(raw)
+    assert len(estimates) == 1
+    assert estimates[0].path == "x"
+
+
 def test_parse_estimates_raises_on_non_json():
     with pytest.raises(ValueError, match="non-JSON"):
         _parse_estimates("This is not JSON at all.")
@@ -205,6 +213,44 @@ def test_estimate_purge_confidence_http_error():
                 api_url="http://localhost:11434/v1",
                 model="llama3",
             )
+
+
+def test_estimate_purge_confidence_repairs_malformed_response():
+    scan = _make_scan_result()
+
+    bad_response = MagicMock()
+    bad_response.json.return_value = {
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": "This data looks like cache files. Use Python to filter it.",
+                }
+            }
+        ]
+    }
+    bad_response.raise_for_status = MagicMock()
+
+    repaired_response = MagicMock()
+    repaired_response.json.return_value = _llm_json_response([
+        {"path": "old_backup.tar.gz", "confidence": 0.95, "reason": "Old backup"},
+        {"path": "important_data.csv", "confidence": 0.05, "reason": "Active data"},
+    ])
+    repaired_response.raise_for_status = MagicMock()
+
+    with patch(
+        "purge_pilot.llm_client.requests.post",
+        side_effect=[bad_response, repaired_response],
+    ) as mock_post:
+        report = estimate_purge_confidence(
+            scan,
+            api_url="http://localhost:11434/v1",
+            model="llama3",
+        )
+
+    assert mock_post.call_count == 2
+    assert len(report.estimates) == 2
+    assert report.estimates[0].path == "old_backup.tar.gz"
 
 
 # ---------------------------------------------------------------------------
