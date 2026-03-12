@@ -127,6 +127,7 @@ def main(argv: List[str] | None = None) -> int:
             file=sys.stderr,
         )
 
+        print(f" scan_result: {scan_result}", file=sys.stderr)
         try:
             report = estimate_purge_confidence(
                 scan_result,
