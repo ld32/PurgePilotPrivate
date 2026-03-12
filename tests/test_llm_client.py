@@ -101,6 +101,16 @@ def test_parse_estimates_extracts_array_from_wrapped_text():
     assert estimates[0].path == "x"
 
 
+def test_parse_estimates_skips_unknown_paths():
+    raw = json.dumps([
+        {"path": "known.txt", "confidence": 0.8, "reason": "old"},
+        {"path": "/invented/path", "confidence": 1.0, "reason": "fake"},
+    ])
+    estimates = _parse_estimates(raw, allowed_paths={"known.txt"})
+    assert len(estimates) == 1
+    assert estimates[0].path == "known.txt"
+
+
 def test_parse_estimates_raises_on_non_json():
     with pytest.raises(ValueError, match="non-JSON"):
         _parse_estimates("This is not JSON at all.")
@@ -250,6 +260,43 @@ def test_estimate_purge_confidence_repairs_malformed_response():
 
     assert mock_post.call_count == 2
     assert len(report.estimates) == 2
+    assert report.estimates[0].path == "old_backup.tar.gz"
+
+
+def test_estimate_purge_confidence_discards_invented_repaired_paths():
+    scan = _make_scan_result()
+
+    bad_response = MagicMock()
+    bad_response.json.return_value = {
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": "Here is some Python code instead of JSON.",
+                }
+            }
+        ]
+    }
+    bad_response.raise_for_status = MagicMock()
+
+    repaired_response = MagicMock()
+    repaired_response.json.return_value = _llm_json_response([
+        {"path": "/some_directory", "confidence": 1.0, "reason": "invented"},
+        {"path": "old_backup.tar.gz", "confidence": 0.9, "reason": "Old backup"},
+    ])
+    repaired_response.raise_for_status = MagicMock()
+
+    with patch(
+        "purge_pilot.llm_client.requests.post",
+        side_effect=[bad_response, repaired_response],
+    ):
+        report = estimate_purge_confidence(
+            scan,
+            api_url="http://localhost:11434/v1",
+            model="llama3",
+        )
+
+    assert len(report.estimates) == 1
     assert report.estimates[0].path == "old_backup.tar.gz"
 
 

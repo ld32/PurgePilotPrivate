@@ -60,6 +60,9 @@ _SYSTEM_PROMPT = """You are a disk-space management assistant.
 You will receive a JSON list of files and directories from a user's data folder.
 For each entry evaluate how safe it is to delete it and return a JSON array.
 
+Do not invent, rewrite, summarize, or normalize paths.
+Only use exact path strings that appear in the input.
+
 Each element in the response array must have exactly these keys:
   "path"       – the exact path string from the input
   "confidence" – a float between 0.0 (definitely keep) and 1.0 (definitely purge)
@@ -77,6 +80,7 @@ Each element in the array must have exactly these keys:
     \"reason\"     - one concise sentence
 
 Do not include markdown, code fences, or explanatory text.
+Do not invent or normalize paths. Only use exact input path strings.
 If the prior response does not contain enough information to build the array, return []."""
 
 
@@ -126,6 +130,7 @@ def estimate_purge_confidence(
 
     endpoint = api_url.rstrip("/") + "/chat/completions"
     logger.debug("POST %s  model=%s  entries=%d", endpoint, model, len(scan_result.entries))
+    allowed_paths = {entry.path for entry in scan_result.entries}
 
     content = _request_completion(
         endpoint=endpoint,
@@ -135,17 +140,18 @@ def estimate_purge_confidence(
     )
 
     try:
-        estimates = _parse_estimates(content)
+        estimates = _parse_estimates(content, allowed_paths=allowed_paths)
     except ValueError as exc:
-        logger.warning("LLM returned malformed JSON; requesting repair: %s", exc)
+        logger.debug("LLM returned malformed JSON; requesting repair: %s", exc)
         repaired_content = _repair_completion(
             endpoint=endpoint,
             headers=headers,
             model=model,
             timeout=timeout,
             original_content=content,
+            allowed_paths=sorted(allowed_paths),
         )
-        estimates = _parse_estimates(repaired_content)
+        estimates = _parse_estimates(repaired_content, allowed_paths=allowed_paths)
 
     return PurgeReport(root=scan_result.root, estimates=estimates)
 
@@ -177,13 +183,23 @@ def _repair_completion(
     model: str,
     timeout: int,
     original_content: str,
+    allowed_paths: List[str],
 ) -> str:
     """Ask the model to convert its prior response into a strict JSON array."""
     payload = {
         "model": model,
         "messages": [
             {"role": "system", "content": _REPAIR_SYSTEM_PROMPT},
-            {"role": "user", "content": original_content},
+            {
+                "role": "user",
+                "content": json.dumps(
+                    {
+                        "allowed_paths": allowed_paths,
+                        "previous_response": original_content,
+                    },
+                    indent=2,
+                ),
+            },
         ],
         "temperature": 0,
     }
@@ -215,7 +231,12 @@ def _normalize_content(content: Any) -> str:
 
     raise ValueError(f"Unsupported LLM message content type: {type(content).__name__}")
 
-def _parse_estimates(content: str) -> List[PurgeEstimate]:
+
+def _parse_estimates(
+    content: str,
+    *,
+    allowed_paths: set[str] | None = None,
+) -> List[PurgeEstimate]:
     """Parse the LLM response content into a list of :class:`PurgeEstimate`."""
     content = content.strip()
 
@@ -241,17 +262,22 @@ def _parse_estimates(content: str) -> List[PurgeEstimate]:
     estimates: List[PurgeEstimate] = []
     for item in data:
         try:
+            path = str(item["path"])
+            if allowed_paths is not None and path not in allowed_paths:
+                logger.debug("Skipping unknown LLM response path %r", path)
+                continue
+
             confidence = float(item["confidence"])
             confidence = max(0.0, min(1.0, confidence))  # clamp to [0, 1]
             estimates.append(
                 PurgeEstimate(
-                    path=str(item["path"]),
+                    path=path,
                     confidence=confidence,
                     reason=str(item.get("reason", "")),
                 )
             )
         except (KeyError, TypeError, ValueError) as exc:
-            logger.warning("Skipping malformed LLM response item %r: %s", item, exc)
+            logger.debug("Skipping malformed LLM response item %r: %s", item, exc)
 
     return estimates
 
