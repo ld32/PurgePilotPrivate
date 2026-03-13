@@ -33,12 +33,27 @@ def _mock_report(root: str, estimates=None) -> PurgeReport:
 
 def test_main_text_output(tmp_path, capsys):
     report = _mock_report(str(tmp_path))
+    scan_file = tmp_path / "scan.json"
+    scan_file.write_text(
+        json.dumps(
+            {
+                "root": str(tmp_path),
+                "entries": [
+                    {
+                        "path": "old.tar.gz",
+                        "is_dir": False,
+                        "size_bytes": 123,
+                        "modified_at": "2024-01-01T00:00:00+00:00",
+                        "depth": 0,
+                    }
+                ],
+            }
+        )
+    )
     with (
-        patch("purge_pilot.main.scan_directory") as mock_scan,
         patch("purge_pilot.main.estimate_purge_confidence", return_value=report),
     ):
-        mock_scan.return_value = MagicMock(entries=[], total_size_bytes=0)
-        rc = main([str(tmp_path), "--api-url", "http://localhost:11434/v1", "--model", "llama3"])
+        rc = main(["query", str(scan_file), "--api-url", "http://localhost:11434/v1", "--model", "llama3"])
 
     assert rc == 0
     out = capsys.readouterr().out
@@ -49,12 +64,27 @@ def test_main_text_output(tmp_path, capsys):
 
 def test_main_json_output(tmp_path, capsys):
     report = _mock_report(str(tmp_path))
+    scan_file = tmp_path / "scan.json"
+    scan_file.write_text(
+        json.dumps(
+            {
+                "root": str(tmp_path),
+                "entries": [
+                    {
+                        "path": "old.tar.gz",
+                        "is_dir": False,
+                        "size_bytes": 123,
+                        "modified_at": "2024-01-01T00:00:00+00:00",
+                        "depth": 0,
+                    }
+                ],
+            }
+        )
+    )
     with (
-        patch("purge_pilot.main.scan_directory") as mock_scan,
         patch("purge_pilot.main.estimate_purge_confidence", return_value=report),
     ):
-        mock_scan.return_value = MagicMock(entries=[], total_size_bytes=0)
-        rc = main([str(tmp_path), "--output", "json", "--api-url", "http://x/v1", "--model", "m"])
+        rc = main(["query", str(scan_file), "--output", "json", "--api-url", "http://x/v1", "--model", "m"])
 
     assert rc == 0
     out = capsys.readouterr().out
@@ -64,7 +94,7 @@ def test_main_json_output(tmp_path, capsys):
 
 
 def test_main_nonexistent_directory(tmp_path, capsys):
-    rc = main([str(tmp_path / "does_not_exist")])
+    rc = main(["scan", str(tmp_path / "does_not_exist")])
     assert rc == 1
     err = capsys.readouterr().err
     assert "not found" in err.lower()
@@ -73,22 +103,37 @@ def test_main_nonexistent_directory(tmp_path, capsys):
 def test_main_path_is_file_not_dir(tmp_path, capsys):
     f = tmp_path / "file.txt"
     f.write_text("x")
-    rc = main([str(f)])
+    rc = main(["scan", str(f)])
     assert rc == 1
     err = capsys.readouterr().err
     assert "not a directory" in err.lower()
 
 
 def test_main_llm_error_returns_nonzero(tmp_path, capsys):
+    scan_file = tmp_path / "scan.json"
+    scan_file.write_text(
+        json.dumps(
+            {
+                "root": str(tmp_path),
+                "entries": [
+                    {
+                        "path": "old.tar.gz",
+                        "is_dir": False,
+                        "size_bytes": 123,
+                        "modified_at": "2024-01-01T00:00:00+00:00",
+                        "depth": 0,
+                    }
+                ],
+            }
+        )
+    )
     with (
-        patch("purge_pilot.main.scan_directory") as mock_scan,
         patch(
             "purge_pilot.main.estimate_purge_confidence",
             side_effect=RuntimeError("connection refused"),
         ),
     ):
-        mock_scan.return_value = MagicMock(entries=[], total_size_bytes=0)
-        rc = main([str(tmp_path), "--api-url", "http://bad/v1", "--model", "x"])
+        rc = main(["query", str(scan_file), "--api-url", "http://bad/v1", "--model", "x"])
 
     assert rc == 1
     err = capsys.readouterr().err
@@ -96,26 +141,18 @@ def test_main_llm_error_returns_nonzero(tmp_path, capsys):
 
 
 def test_main_scan_passes_max_depth(tmp_path):
-    report = _mock_report(str(tmp_path), estimates=[])
-    with (
-        patch("purge_pilot.main.scan_directory") as mock_scan,
-        patch("purge_pilot.main.estimate_purge_confidence", return_value=report),
-    ):
+    with patch("purge_pilot.main.scan_directory") as mock_scan:
         mock_scan.return_value = MagicMock(entries=[], total_size_bytes=0)
-        main([str(tmp_path), "--max-depth", "3", "--api-url", "http://x/v1", "--model", "m"])
+        main(["scan", str(tmp_path), "--max-depth", "3"])
 
     _, kwargs = mock_scan.call_args
     assert kwargs["max_depth"] == 3
 
 
 def test_main_scan_passes_include_hidden(tmp_path):
-    report = _mock_report(str(tmp_path), estimates=[])
-    with (
-        patch("purge_pilot.main.scan_directory") as mock_scan,
-        patch("purge_pilot.main.estimate_purge_confidence", return_value=report),
-    ):
+    with patch("purge_pilot.main.scan_directory") as mock_scan:
         mock_scan.return_value = MagicMock(entries=[], total_size_bytes=0)
-        main([str(tmp_path), "--include-hidden", "--api-url", "http://x/v1", "--model", "m"])
+        main(["scan", str(tmp_path), "--include-hidden"])
 
     _, kwargs = mock_scan.call_args
     assert kwargs["include_hidden"] is True
@@ -179,6 +216,12 @@ def test_main_rejects_dirs_with_from_scan(tmp_path, capsys):
     rc = main([str(tmp_path), "--from-scan", str(scan_file)])
     assert rc == 1
     assert "cannot be used with --from-scan" in capsys.readouterr().err
+
+
+def test_main_rejects_implicit_combined_mode(tmp_path, capsys):
+    rc = main([str(tmp_path)])
+    assert rc == 1
+    assert "Split workflow is the default" in capsys.readouterr().err
 
 
 def test_main_scan_subcommand_saves_scan_file(tmp_path, capsys):
