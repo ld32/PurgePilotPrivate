@@ -45,7 +45,7 @@ def parse_config(config_path: Path) -> dict:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="purge-pilot",
+        prog="purgep",
         description=(
             "Scan one or more data folders and use an LLM server to estimate "
             "how confident each file/folder can be purged."
@@ -139,7 +139,7 @@ def _build_parser() -> argparse.ArgumentParser:
 def _build_subcommand_parser() -> argparse.ArgumentParser:
     """Build a dedicated parser for explicit subcommands."""
     parser = argparse.ArgumentParser(
-        prog="purge-pilot",
+        prog="purgep",
         description="Run scan and query as separate steps.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -276,8 +276,8 @@ def main(argv: List[str] | None = None) -> int:
 
     if args.directories and not args.scan_only and not args.from_scan:
         print(
-            "ERROR: Split workflow is the default. Run `purge-pilot scan DIR --save-scan scan.json` "
-            "then `purge-pilot query scan.json` in serial.",
+            "ERROR: Split workflow is the default. Run `purgep scan DIR --save-scan scan.json` "
+            "then `purgep query scan.json` in serial.",
             file=sys.stderr,
         )
         return 1
