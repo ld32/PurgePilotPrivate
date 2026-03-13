@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import List
 
 from .llm_client import estimate_purge_confidence, _SYSTEM_PROMPT
-from .scanner import scan_directory
+from .scanner import ScanResult, scan_directory
 
 
 def parse_config(config_path: Path) -> dict:
@@ -54,7 +54,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "directories",
         metavar="DIR",
-        nargs="+",
+        nargs="*",
         help="One or more directories to scan.",
     )
     parser.add_argument(
@@ -117,7 +117,62 @@ def _build_parser() -> argparse.ArgumentParser:
         default="purge_config.md",
         help="Path to the configuration markdown file (default: purge_config.md).",
     )
+    parser.add_argument(
+        "--scan-only",
+        action="store_true",
+        help="Only scan directories and output scan JSON (no LLM query).",
+    )
+    parser.add_argument(
+        "--save-scan",
+        metavar="FILE",
+        help="Write the scan JSON to a file (single directory only).",
+    )
+    parser.add_argument(
+        "--from-scan",
+        nargs="+",
+        metavar="FILE",
+        help="Load one or more scan JSON files and only run the LLM query step.",
+    )
     return parser
+
+
+def _load_scan_result(path: Path) -> ScanResult:
+    with open(path, encoding="utf-8") as f:
+        raw = json.load(f)
+    if not isinstance(raw, dict):
+        raise ValueError(f"Scan file must contain a JSON object: {path}")
+    return ScanResult.from_dict(raw)
+
+
+def _apply_config_overrides(report, config: dict) -> None:
+    important_paths = set(config.get("important", []))
+    trash_paths = set(config.get("trash", []))
+    for est in report.estimates:
+        if est.path in important_paths:
+            est.confidence = 0.0
+            est.reason = "Never purge as per config"
+        elif est.path in trash_paths:
+            est.confidence = 1.0
+            est.reason = "Always delete as per config"
+
+
+def _query_scan_result(args, scan_result: ScanResult, system_prompt: str):
+    print(
+        f"  Found {len(scan_result.entries)} entries "
+        f"({scan_result.total_size_bytes:,} bytes). "
+        f"Querying LLM …",
+        file=sys.stderr,
+    )
+
+    report = estimate_purge_confidence(
+        scan_result,
+        api_url=args.api_url,
+        model=args.model,
+        api_key=args.api_key,
+        timeout=args.timeout,
+        system_prompt=system_prompt,
+    )
+    return report
 
 
 def main(argv: List[str] | None = None) -> int:
@@ -129,14 +184,60 @@ def main(argv: List[str] | None = None) -> int:
         format="%(levelname)s %(name)s: %(message)s",
     )
 
-    config_path = Path(args.config)
-    if not config_path.exists():
-        print(f"ERROR: Config file not found: {config_path}", file=sys.stderr)
+    if args.scan_only and args.from_scan:
+        print("ERROR: --scan-only cannot be combined with --from-scan.", file=sys.stderr)
         return 1
-    config = parse_config(config_path)
-    system_prompt = config.get('prompt', _SYSTEM_PROMPT)
+
+    if args.from_scan and args.directories:
+        print("ERROR: DIR arguments cannot be used with --from-scan.", file=sys.stderr)
+        return 1
+
+    if args.save_scan and args.from_scan:
+        print("ERROR: --save-scan is only valid while scanning directories.", file=sys.stderr)
+        return 1
+
+    if not args.from_scan and not args.directories:
+        parser.error("At least one DIR is required unless --from-scan is used.")
 
     exit_code = 0
+    config = {}
+    system_prompt = _SYSTEM_PROMPT
+
+    if not args.scan_only:
+        config_path = Path(args.config)
+        if not config_path.exists():
+            print(f"ERROR: Config file not found: {config_path}", file=sys.stderr)
+            return 1
+        config = parse_config(config_path)
+        system_prompt = config.get("prompt", _SYSTEM_PROMPT)
+
+    if args.from_scan:
+        for scan_file in args.from_scan:
+            scan_path = Path(scan_file)
+            if not scan_path.exists():
+                print(f"ERROR: Scan file not found: {scan_path}", file=sys.stderr)
+                exit_code = 1
+                continue
+
+            print(f"Loading scan data from {scan_path.resolve()} …", file=sys.stderr)
+            try:
+                scan_result = _load_scan_result(scan_path)
+                report = _query_scan_result(args, scan_result, system_prompt)
+            except Exception as exc:  # noqa: BLE001
+                print(f"ERROR: Failed to query from scan file {scan_file}: {exc}", file=sys.stderr)
+                exit_code = 1
+                continue
+
+            _apply_config_overrides(report, config)
+
+            if args.output == "json":
+                print(json.dumps(report.to_dict(), indent=2))
+            else:
+                _print_text_report(report, threshold=args.threshold)
+
+        return exit_code
+
+    scan_results: List[ScanResult] = []
 
     for directory in args.directories:
         dir_path = Path(directory)
@@ -161,43 +262,47 @@ def main(argv: List[str] | None = None) -> int:
             exit_code = 1
             continue
 
-        print(
-            f"  Found {len(scan_result.entries)} entries "
-            f"({scan_result.total_size_bytes:,} bytes). "
-            f"Querying LLM …",
-            file=sys.stderr,
-        )
+        scan_results.append(scan_result)
 
-        print(f" scan_result: {scan_result}", file=sys.stderr)
+        if args.scan_only:
+            continue
+
         try:
-            report = estimate_purge_confidence(
-                scan_result,
-                api_url=args.api_url,
-                model=args.model,
-                api_key=args.api_key,
-                timeout=args.timeout,
-                system_prompt=system_prompt,
-            )
+            report = _query_scan_result(args, scan_result, system_prompt)
         except Exception as exc:  # noqa: BLE001
             print(f"ERROR: LLM request failed for {directory}: {exc}", file=sys.stderr)
             exit_code = 1
             continue
 
-        # Apply config overrides
-        important_paths = set(config.get('important', []))
-        trash_paths = set(config.get('trash', []))
-        for est in report.estimates:
-            if est.path in important_paths:
-                est.confidence = 0.0
-                est.reason = "Never purge as per config"
-            elif est.path in trash_paths:
-                est.confidence = 1.0
-                est.reason = "Always delete as per config"
+        _apply_config_overrides(report, config)
 
         if args.output == "json":
             print(json.dumps(report.to_dict(), indent=2))
         else:
             _print_text_report(report, threshold=args.threshold)
+
+    if args.scan_only:
+        if args.save_scan:
+            if len(scan_results) != 1:
+                print("ERROR: --save-scan requires exactly one DIR.", file=sys.stderr)
+                return 1
+            out_path = Path(args.save_scan)
+            with open(out_path, "w", encoding="utf-8") as f:
+                json.dump(scan_results[0].to_dict(), f, indent=2)
+            print(f"Saved scan JSON to {out_path.resolve()}", file=sys.stderr)
+
+        if args.output == "json":
+            if len(scan_results) == 1:
+                print(json.dumps(scan_results[0].to_dict(), indent=2))
+            else:
+                print(json.dumps([result.to_dict() for result in scan_results], indent=2))
+        else:
+            for result in scan_results:
+                print(
+                    f"Scan summary for {result.root}: "
+                    f"{len(result.entries)} entries, "
+                    f"{result.total_size_bytes:,} bytes"
+                )
 
     return exit_code
 
