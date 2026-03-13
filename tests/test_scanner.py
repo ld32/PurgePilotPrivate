@@ -131,3 +131,23 @@ def test_scan_result_to_dict(simple_tree):
     assert d["root"] == str(simple_tree)
     assert d["entry_count"] == len(result.entries)
     assert isinstance(d["entries"], list)
+
+
+def test_file_entry_from_dict_round_trip(simple_tree):
+    result = scan_directory(simple_tree)
+    file_a = next(e for e in result.entries if e.path == "file_a.txt")
+    d = file_a.to_dict()
+    recreated = FileEntry.from_dict(d)
+    assert recreated.path == file_a.path
+    assert recreated.is_dir == file_a.is_dir
+    assert recreated.size_bytes == file_a.size_bytes
+    assert recreated.depth == file_a.depth
+
+
+def test_scan_result_from_dict_round_trip(simple_tree):
+    result = scan_directory(simple_tree)
+    d = result.to_dict()
+    recreated = ScanResult.from_dict(d)
+    assert recreated.root == result.root
+    assert len(recreated.entries) == len(result.entries)
+    assert recreated.total_size_bytes == result.total_size_bytes
