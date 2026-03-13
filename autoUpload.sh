@@ -1,6 +1,8 @@
 #!/usr/bin/env sh
 set -eu
 
+set -x 
+
 # Watch the current repository by default; override with WATCH_DIR.
 WATCH_DIR="${WATCH_DIR:-$(pwd)}"
 
@@ -8,7 +10,7 @@ if ! command -v inotifywait >/dev/null 2>&1; then
   echo "Error: inotifywait is not installed. Install inotify-tools first." >&2
   exit 1
 fi
-
+ 
 if ! git -C "$WATCH_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "Error: WATCH_DIR is not inside a git repository: $WATCH_DIR" >&2
   exit 1
@@ -25,7 +27,7 @@ auto_push() {
   git -C "$WATCH_DIR" add -A
 
   if git -C "$WATCH_DIR" diff --cached --quiet; then
-    return 0
+    return 0  
   fi
 
   git -C "$WATCH_DIR" commit -m "chore(auto): update ${changed_file} at $(date '+%Y-%m-%d %H:%M:%S')" >/dev/null 2>&1 || true
