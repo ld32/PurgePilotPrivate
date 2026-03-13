@@ -91,6 +91,7 @@ def estimate_purge_confidence(
     model: str,
     api_key: Optional[str] = None,
     timeout: int = 120,
+    system_prompt: str = _SYSTEM_PROMPT,
 ) -> PurgeReport:
     """Call the LLM server and return a :class:`PurgeReport`.
 
@@ -109,6 +110,8 @@ def estimate_purge_confidence(
         authentication (e.g. a local Ollama instance).
     timeout:
         HTTP request timeout in seconds.
+    system_prompt:
+        The system prompt to use for the LLM.
     """
     entries_json = json.dumps(
         [e.to_dict() for e in scan_result.entries],
@@ -122,7 +125,7 @@ def estimate_purge_confidence(
     payload = {
         "model": model,
         "messages": [
-            {"role": "system", "content": _SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": entries_json},
         ],
         "temperature": 0.2,
