@@ -28,6 +28,16 @@ class FileEntry:
             "depth": self.depth,
         }
 
+    @classmethod
+    def from_dict(cls, data: dict) -> "FileEntry":
+        return cls(
+            path=str(data["path"]),
+            is_dir=bool(data["is_dir"]),
+            size_bytes=int(data["size_bytes"]),
+            modified_at=datetime.fromisoformat(str(data["modified_at"])),
+            depth=int(data["depth"]),
+        )
+
 
 @dataclass
 class ScanResult:
@@ -47,6 +57,11 @@ class ScanResult:
             "entry_count": len(self.entries),
             "entries": [e.to_dict() for e in self.entries],
         }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ScanResult":
+        entries = [FileEntry.from_dict(item) for item in data.get("entries", [])]
+        return cls(root=str(data["root"]), entries=entries)
 
 
 def scan_directory(
