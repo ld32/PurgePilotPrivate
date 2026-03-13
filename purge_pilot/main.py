@@ -6,12 +6,41 @@ import argparse
 import json
 import logging
 import os
+import re
 import sys
 from pathlib import Path
 from typing import List
 
-from .llm_client import estimate_purge_confidence
+from .llm_client import estimate_purge_confidence, _SYSTEM_PROMPT
 from .scanner import scan_directory
+
+
+def parse_config(config_path: Path) -> dict:
+    """Parse the markdown config file."""
+    with open(config_path, encoding='utf-8') as f:
+        content = f.read()
+
+    config = {}
+    # Find sections
+    sections = re.split(r'^##\s+', content, flags=re.MULTILINE)
+    for section in sections:
+        lines = section.strip().split('\n')
+        if not lines:
+            continue
+        title = lines[0].strip()
+        body = '\n'.join(lines[1:]).strip()
+        if title == 'AI Prompt':
+            # Find code block
+            match = re.search(r'```\s*\n(.*?)\n\s*```', body, re.DOTALL)
+            if match:
+                config['prompt'] = match.group(1).strip()
+        elif 'Important Data' in title:
+            items = [re.sub(r'^\s*-\s*', '', line).strip() for line in body.split('\n') if re.match(r'^\s*-\s*', line)]
+            config['important'] = items
+        elif 'Trash Data' in title:
+            items = [re.sub(r'^\s*-\s*', '', line).strip() for line in body.split('\n') if re.match(r'^\s*-\s*', line)]
+            config['trash'] = items
+    return config
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -83,6 +112,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Enable verbose/debug logging.",
     )
+    parser.add_argument(
+        "--config",
+        default="purge_config.md",
+        help="Path to the configuration markdown file (default: purge_config.md).",
+    )
     return parser
 
 
@@ -94,6 +128,13 @@ def main(argv: List[str] | None = None) -> int:
         level=logging.DEBUG if args.verbose else logging.WARNING,
         format="%(levelname)s %(name)s: %(message)s",
     )
+
+    config_path = Path(args.config)
+    if not config_path.exists():
+        print(f"ERROR: Config file not found: {config_path}", file=sys.stderr)
+        return 1
+    config = parse_config(config_path)
+    system_prompt = config.get('prompt', _SYSTEM_PROMPT)
 
     exit_code = 0
 
@@ -134,11 +175,23 @@ def main(argv: List[str] | None = None) -> int:
                 model=args.model,
                 api_key=args.api_key,
                 timeout=args.timeout,
+                system_prompt=system_prompt,
             )
         except Exception as exc:  # noqa: BLE001
             print(f"ERROR: LLM request failed for {directory}: {exc}", file=sys.stderr)
             exit_code = 1
             continue
+
+        # Apply config overrides
+        important_paths = set(config.get('important', []))
+        trash_paths = set(config.get('trash', []))
+        for est in report.estimates:
+            if est.path in important_paths:
+                est.confidence = 0.0
+                est.reason = "Never purge as per config"
+            elif est.path in trash_paths:
+                est.confidence = 1.0
+                est.reason = "Always delete as per config"
 
         if args.output == "json":
             print(json.dumps(report.to_dict(), indent=2))
