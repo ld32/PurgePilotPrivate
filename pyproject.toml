@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.scripts]
-purge-pilot = "purge_pilot.main:main"
+purgep = "purge_pilot.main:main"
 
 [project.optional-dependencies]
 dev = [
