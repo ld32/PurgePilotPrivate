@@ -152,6 +152,8 @@ purge-pilot /path/to/data \
 
 ```
 purge-pilot [OPTIONS] DIR [DIR ...]
+# or
+purge-pilot [OPTIONS] --from-scan FILE [FILE ...]
 ```
 
 ### Split scan and AI query (CPU/GPU separation)
