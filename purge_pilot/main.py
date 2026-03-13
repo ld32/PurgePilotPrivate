@@ -35,10 +35,10 @@ def parse_config(config_path: Path) -> dict:
             if match:
                 config['prompt'] = match.group(1).strip()
         elif 'Important Data' in title:
-            items = [re.sub(r'^\s*-\s*', '', line).strip() for line in body.split('\n') if re.match(r'^\s*-\s*', line)]
+            items = [re.sub(r'^\s*-\s*', '', line).strip().strip('`') for line in body.split('\n') if re.match(r'^\s*-\s*', line)]
             config['important'] = items
         elif 'Trash Data' in title:
-            items = [re.sub(r'^\s*-\s*', '', line).strip() for line in body.split('\n') if re.match(r'^\s*-\s*', line)]
+            items = [re.sub(r'^\s*-\s*', '', line).strip().strip('`') for line in body.split('\n') if re.match(r'^\s*-\s*', line)]
             config['trash'] = items
     return config
 

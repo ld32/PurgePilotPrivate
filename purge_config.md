@@ -19,22 +19,22 @@ For each file/folder, provide a confidence score (0-100) and a brief explanation
 
 This section lists folders and files that should never be purged under any circumstances. These are critical to the project's functionality or integrity.
 
-- `purge_pilot/__init__.py`
-- `pyproject.toml`
-- `README.md`
-- `LICENSE`
-- `tests/` (entire directory)
-- `.git/` (if present)
+- purge_pilot/__init__.py
+- pyproject.toml
+- README.md
+- LICENSE
+- tests/ (entire directory)
+- .git/ (if present)
 
 ## Trash Data (Always Delete)
 
 This section lists folders and files that should always be deleted during the purge process. These are typically temporary, generated, or unnecessary files.
 
-- `__pycache__/` (entire directory)
-- `*.pyc`
-- `*.pyo`
-- `.pytest_cache/`
-- `build/`
-- `dist/`
-- `*.log`
-- `*.tmp`
+- __pycache__/ (entire directory)
+- *.pyc
+- *.pyo
+- .pytest_cache/
+- build/
+- dist/
+- *.log
+- *.tmp
