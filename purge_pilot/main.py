@@ -274,6 +274,14 @@ def main(argv: List[str] | None = None) -> int:
         print("ERROR: --save-scan is only valid while scanning directories.", file=sys.stderr)
         return 1
 
+    if args.directories and not args.scan_only and not args.from_scan:
+        print(
+            "ERROR: Split workflow is the default. Run `purge-pilot scan DIR --save-scan scan.json` "
+            "then `purge-pilot query scan.json` in serial.",
+            file=sys.stderr,
+        )
+        return 1
+
     if not args.from_scan and not args.directories:
         parser.error("At least one DIR is required unless --from-scan is used.")
 
