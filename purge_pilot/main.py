@@ -89,20 +89,37 @@ def _is_trash_path(path: str, config: dict) -> bool:
     return any(_matches_config_pattern(path, pattern) for pattern in config.get("trash", []))
 
 
-def _filter_important_scan_entries(scan_result: ScanResult, config: dict) -> ScanResult:
-    filtered_entries = [entry for entry in scan_result.entries if not _is_important_path(entry.path, config)]
+def _filter_ai_scan_entries(scan_result: ScanResult, config: dict) -> ScanResult:
+    filtered_entries = [
+        entry
+        for entry in scan_result.entries
+        if not _is_important_path(entry.path, config) and not _is_trash_path(entry.path, config)
+    ]
     return ScanResult(root=scan_result.root, entries=filtered_entries)
 
 
-def _ensure_trash_entries_in_report(report, scan_result: ScanResult, config: dict) -> None:
+def _ensure_rule_based_entries_in_report(report, full_scan_result: ScanResult, config: dict) -> None:
     seen = {estimate.path for estimate in report.estimates}
     for estimate in report.estimates:
+        if _is_important_path(estimate.path, config):
+            estimate.confidence = 0.0
+            estimate.reason = "Never purge as per config"
+            continue
         if _is_trash_path(estimate.path, config):
             estimate.confidence = 1.0
             estimate.reason = "Always delete as per config"
 
-    for entry in scan_result.entries:
+    for entry in full_scan_result.entries:
         if entry.path in seen:
+            continue
+        if _is_important_path(entry.path, config):
+            report.estimates.append(
+                PurgeEstimate(
+                    path=entry.path,
+                    confidence=0.0,
+                    reason="Never purge as per config",
+                )
+            )
             continue
         if _is_trash_path(entry.path, config):
             report.estimates.append(
@@ -376,14 +393,15 @@ def main(argv: List[str] | None = None) -> int:
 
             print(f"Loading scan data from {scan_path.resolve()} …", file=sys.stderr)
             try:
-                scan_result = _filter_important_scan_entries(_load_scan_result(scan_path), config)
-                report = _query_scan_result(args, scan_result, system_prompt)
+                full_scan_result = _load_scan_result(scan_path)
+                ai_scan_result = _filter_ai_scan_entries(full_scan_result, config)
+                report = _query_scan_result(args, ai_scan_result, system_prompt)
             except Exception as exc:  # noqa: BLE001
                 print(f"ERROR: Failed to query from scan file {scan_file}: {exc}", file=sys.stderr)
                 exit_code = 1
                 continue
 
-            _ensure_trash_entries_in_report(report, scan_result, config)
+            _ensure_rule_based_entries_in_report(report, full_scan_result, config)
             _apply_config_overrides(report, config)
 
             if args.output == "json":
@@ -413,7 +431,6 @@ def main(argv: List[str] | None = None) -> int:
                 max_depth=args.max_depth,
                 include_hidden=args.include_hidden,
             )
-            scan_result = _filter_important_scan_entries(scan_result, config)
         except Exception as exc:  # noqa: BLE001
             print(f"ERROR: Failed to scan {directory}: {exc}", file=sys.stderr)
             exit_code = 1
@@ -425,13 +442,14 @@ def main(argv: List[str] | None = None) -> int:
             continue
 
         try:
-            report = _query_scan_result(args, scan_result, system_prompt)
+            ai_scan_result = _filter_ai_scan_entries(scan_result, config)
+            report = _query_scan_result(args, ai_scan_result, system_prompt)
         except Exception as exc:  # noqa: BLE001
             print(f"ERROR: LLM request failed for {directory}: {exc}", file=sys.stderr)
             exit_code = 1
             continue
 
-        _ensure_trash_entries_in_report(report, scan_result, config)
+        _ensure_rule_based_entries_in_report(report, scan_result, config)
         _apply_config_overrides(report, config)
 
         if args.output == "json":
