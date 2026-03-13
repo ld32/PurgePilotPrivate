@@ -210,7 +210,7 @@ purge-pilot ~/Downloads --api-url https://api.openai.com/v1 --model gpt-4o
 
 | Option | Default | Description |
 |---|---|---|
-| `DIR` | *(required)* | One or more directories to scan |
+| `DIR` | *(conditional)* | One or more directories to scan (required unless `--from-scan` is used) |
 | `--scan-only` | *(off)* | Only scan directories and output scan data (skip LLM query) |
 | `--save-scan FILE` | *(none)* | Save scan JSON to a file (single directory only) |
 | `--from-scan FILE [FILE ...]` | *(none)* | Load saved scan JSON and run only the LLM query step |
