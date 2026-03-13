@@ -136,6 +136,51 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _build_subcommand_parser() -> argparse.ArgumentParser:
+    """Build a dedicated parser for explicit subcommands."""
+    parser = argparse.ArgumentParser(
+        prog="purge-pilot",
+        description="Run scan and query as separate steps.",
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    scan_parser = subparsers.add_parser(
+        "scan",
+        help="Scan directories and optionally save scan JSON.",
+    )
+    scan_parser.add_argument("directories", metavar="DIR", nargs="+")
+    scan_parser.add_argument("--max-depth", type=int, default=10, metavar="INT")
+    scan_parser.add_argument("--include-hidden", action="store_true")
+    scan_parser.add_argument("--output", choices=["text", "json"], default="text")
+    scan_parser.add_argument("--save-scan", metavar="FILE")
+    scan_parser.add_argument("-v", "--verbose", action="store_true")
+
+    query_parser = subparsers.add_parser(
+        "query",
+        help="Query the LLM using one or more saved scan JSON files.",
+    )
+    query_parser.add_argument("scan_files", metavar="FILE", nargs="+")
+    query_parser.add_argument(
+        "--api-url",
+        default=os.environ.get("PURGE_PILOT_API_URL", "http://localhost:11434/v1"),
+    )
+    query_parser.add_argument(
+        "--model",
+        default=os.environ.get("PURGE_PILOT_MODEL", "llama3"),
+    )
+    query_parser.add_argument(
+        "--api-key",
+        default=os.environ.get("PURGE_PILOT_API_KEY"),
+    )
+    query_parser.add_argument("--threshold", type=float, default=0.7, metavar="FLOAT")
+    query_parser.add_argument("--output", choices=["text", "json"], default="text")
+    query_parser.add_argument("--timeout", type=int, default=120, metavar="SECONDS")
+    query_parser.add_argument("--config", default="purge_config.md")
+    query_parser.add_argument("-v", "--verbose", action="store_true")
+
+    return parser
+
+
 def _load_scan_result(path: Path) -> ScanResult:
     with open(path, encoding="utf-8") as f:
         raw = json.load(f)
@@ -176,6 +221,39 @@ def _query_scan_result(args, scan_result: ScanResult, system_prompt: str):
 
 
 def main(argv: List[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+
+    if argv and argv[0] in {"scan", "query"}:
+        subcommand_parser = _build_subcommand_parser()
+        subcommand_args = subcommand_parser.parse_args(argv)
+
+        translated_argv: List[str]
+        if subcommand_args.command == "scan":
+            translated_argv = [*subcommand_args.directories, "--scan-only"]
+            translated_argv.extend(["--max-depth", str(subcommand_args.max_depth)])
+            translated_argv.extend(["--output", subcommand_args.output])
+            if subcommand_args.include_hidden:
+                translated_argv.append("--include-hidden")
+            if subcommand_args.save_scan:
+                translated_argv.extend(["--save-scan", subcommand_args.save_scan])
+            if subcommand_args.verbose:
+                translated_argv.append("--verbose")
+        else:
+            translated_argv = ["--from-scan", *subcommand_args.scan_files]
+            translated_argv.extend(["--api-url", subcommand_args.api_url])
+            translated_argv.extend(["--model", subcommand_args.model])
+            translated_argv.extend(["--threshold", str(subcommand_args.threshold)])
+            translated_argv.extend(["--output", subcommand_args.output])
+            translated_argv.extend(["--timeout", str(subcommand_args.timeout)])
+            translated_argv.extend(["--config", subcommand_args.config])
+            if subcommand_args.api_key:
+                translated_argv.extend(["--api-key", subcommand_args.api_key])
+            if subcommand_args.verbose:
+                translated_argv.append("--verbose")
+
+        argv = translated_argv
+
     parser = _build_parser()
     args = parser.parse_args(argv)
 

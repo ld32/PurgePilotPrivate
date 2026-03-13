@@ -179,3 +179,51 @@ def test_main_rejects_dirs_with_from_scan(tmp_path, capsys):
     rc = main([str(tmp_path), "--from-scan", str(scan_file)])
     assert rc == 1
     assert "cannot be used with --from-scan" in capsys.readouterr().err
+
+
+def test_main_scan_subcommand_saves_scan_file(tmp_path, capsys):
+    scan_json = tmp_path / "scan-subcommand.json"
+    mocked_scan = MagicMock(entries=[], total_size_bytes=0)
+    mocked_scan.to_dict.return_value = {
+        "root": str(tmp_path),
+        "total_size_bytes": 0,
+        "entry_count": 0,
+        "entries": [],
+    }
+
+    with patch("purge_pilot.main.scan_directory", return_value=mocked_scan):
+        rc = main(["scan", str(tmp_path), "--save-scan", str(scan_json), "--output", "json"])
+
+    assert rc == 0
+    assert scan_json.exists()
+    assert "Saved scan JSON" in capsys.readouterr().err
+
+
+def test_main_query_subcommand_uses_scan_file(tmp_path, capsys):
+    scan_file = tmp_path / "scan-subcommand.json"
+    scan_file.write_text(
+        json.dumps(
+            {
+                "root": str(tmp_path),
+                "entries": [
+                    {
+                        "path": "old.tar.gz",
+                        "is_dir": False,
+                        "size_bytes": 123,
+                        "modified_at": "2024-01-01T00:00:00+00:00",
+                        "depth": 0,
+                    }
+                ],
+            }
+        )
+    )
+
+    report = _mock_report(str(tmp_path), estimates=[
+        PurgeEstimate(path="old.tar.gz", confidence=0.95, reason="Old archive")
+    ])
+
+    with patch("purge_pilot.main.estimate_purge_confidence", return_value=report):
+        rc = main(["query", str(scan_file), "--api-url", "http://localhost:11434/v1", "--model", "llama3"])
+
+    assert rc == 0
+    assert "old.tar.gz" in capsys.readouterr().out

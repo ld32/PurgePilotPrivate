@@ -154,6 +154,9 @@ purge-pilot /path/to/data \
 purge-pilot [OPTIONS] DIR [DIR ...]
 # or
 purge-pilot [OPTIONS] --from-scan FILE [FILE ...]
+# preferred split mode
+purge-pilot scan DIR [DIR ...] [SCAN_OPTIONS]
+purge-pilot query FILE [FILE ...] [QUERY_OPTIONS]
 ```
 
 ### Split scan and AI query (CPU/GPU separation)
@@ -163,15 +166,22 @@ Run the filesystem scan on a CPU machine, then run the LLM query later on a GPU 
 1. Scan only and save JSON:
 
 ```bash
-purge-pilot /path/to/data --scan-only --save-scan scan.json --output json
+purge-pilot scan /path/to/data --save-scan scan.json --output json
 ```
 
 2. Query from the saved scan JSON:
 
 ```bash
-purge-pilot --from-scan scan.json \
+purge-pilot query scan.json \
   --api-url http://localhost:11434/v1 \
   --model llama3
+```
+
+Equivalent legacy flags still work:
+
+```bash
+purge-pilot /path/to/data --scan-only --save-scan scan.json --output json
+purge-pilot --from-scan scan.json --api-url http://localhost:11434/v1 --model llama3
 ```
 
 ### Examples
