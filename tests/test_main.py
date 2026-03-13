@@ -119,3 +119,63 @@ def test_main_scan_passes_include_hidden(tmp_path):
 
     _, kwargs = mock_scan.call_args
     assert kwargs["include_hidden"] is True
+
+
+def test_main_scan_only_saves_scan_file(tmp_path, capsys):
+    scan_json = tmp_path / "scan.json"
+    mocked_scan = MagicMock(entries=[], total_size_bytes=0)
+    mocked_scan.to_dict.return_value = {
+        "root": str(tmp_path),
+        "total_size_bytes": 0,
+        "entry_count": 0,
+        "entries": [],
+    }
+
+    with patch("purge_pilot.main.scan_directory", return_value=mocked_scan):
+        rc = main([str(tmp_path), "--scan-only", "--save-scan", str(scan_json), "--output", "json"])
+
+    assert rc == 0
+    assert scan_json.exists()
+    data = json.loads(scan_json.read_text())
+    assert data["root"] == str(tmp_path)
+    assert data["entries"] == []
+    assert "Saved scan JSON" in capsys.readouterr().err
+
+
+def test_main_query_from_scan_file(tmp_path, capsys):
+    scan_file = tmp_path / "scan.json"
+    scan_file.write_text(
+        json.dumps(
+            {
+                "root": str(tmp_path),
+                "entries": [
+                    {
+                        "path": "old.tar.gz",
+                        "is_dir": False,
+                        "size_bytes": 123,
+                        "modified_at": "2024-01-01T00:00:00+00:00",
+                        "depth": 0,
+                    }
+                ],
+            }
+        )
+    )
+
+    report = _mock_report(str(tmp_path), estimates=[
+        PurgeEstimate(path="old.tar.gz", confidence=0.95, reason="Old archive")
+    ])
+
+    with patch("purge_pilot.main.estimate_purge_confidence", return_value=report):
+        rc = main(["--from-scan", str(scan_file), "--api-url", "http://localhost:11434/v1", "--model", "llama3"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "old.tar.gz" in out
+
+
+def test_main_rejects_dirs_with_from_scan(tmp_path, capsys):
+    scan_file = tmp_path / "scan.json"
+    scan_file.write_text(json.dumps({"root": str(tmp_path), "entries": []}))
+    rc = main([str(tmp_path), "--from-scan", str(scan_file)])
+    assert rc == 1
+    assert "cannot be used with --from-scan" in capsys.readouterr().err
