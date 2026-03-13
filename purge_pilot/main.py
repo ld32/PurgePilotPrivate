@@ -279,13 +279,11 @@ def _load_scan_result(path: Path) -> ScanResult:
 
 
 def _apply_config_overrides(report, config: dict) -> None:
-    important_paths = set(config.get("important", []))
-    trash_paths = set(config.get("trash", []))
     for est in report.estimates:
-        if est.path in important_paths:
+        if _is_important_path(est.path, config):
             est.confidence = 0.0
             est.reason = "Never purge as per config"
-        elif est.path in trash_paths:
+        elif _is_trash_path(est.path, config):
             est.confidence = 1.0
             est.reason = "Always delete as per config"
 
