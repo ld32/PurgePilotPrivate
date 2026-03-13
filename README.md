@@ -136,12 +136,17 @@ purge-pilot /path/to/data \
 ## Usage
 
 ```
-purge-pilot [OPTIONS] DIR [DIR ...]
-# or
-purge-pilot [OPTIONS] --from-scan FILE [FILE ...]
-# preferred split mode
 purge-pilot scan DIR [DIR ...] [SCAN_OPTIONS]
 purge-pilot query FILE [FILE ...] [QUERY_OPTIONS]
+```
+
+Split mode is the default workflow.
+
+If you want to run a full end-to-end pass in one go, run these two commands in serial:
+
+```bash
+purge-pilot scan /path/to/data --save-scan scan.json --output json
+purge-pilot query scan.json --api-url http://localhost:11434/v1 --model llama3
 ```
 
 ### Split scan and AI query (CPU/GPU separation)
@@ -160,13 +165,6 @@ purge-pilot scan /path/to/data --save-scan scan.json --output json
 purge-pilot query scan.json \
   --api-url http://localhost:11434/v1 \
   --model llama3
-```
-
-Equivalent legacy flags still work:
-
-```bash
-purge-pilot /path/to/data --scan-only --save-scan scan.json --output json
-purge-pilot --from-scan scan.json --api-url http://localhost:11434/v1 --model llama3
 ```
 
 ### Examples
