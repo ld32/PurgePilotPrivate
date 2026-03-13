@@ -37,4 +37,4 @@ This section lists folders and files that should always be deleted during the pu
 - build/
 - dist/
 - *.log
-- `*.tmp`
+- *.tmp
