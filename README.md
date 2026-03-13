@@ -96,30 +96,15 @@ ollama pull phi3:mini          # replace with your chosen model
 
 ### 3 – Tune memory usage
 
-Set these environment variables **before** starting Ollama to control
-how much RAM it may consume:
+If you use the provided conda environment, PurgePilot sets these defaults
+automatically to reduce RAM usage:
 
-```bash
-# Keep only one model loaded at a time (saves RAM when you switch models)
-export OLLAMA_MAX_LOADED_MODELS=1
+- `OLLAMA_MAX_LOADED_MODELS=1`
+- `OLLAMA_NUM_PARALLEL=1`
+- `OLLAMA_KEEP_ALIVE=5m`
 
-# Process one request at a time (reduces peak RAM on low-memory hosts)
-export OLLAMA_NUM_PARALLEL=1
-
-# Unload the model from RAM after 5 minutes of inactivity
-export OLLAMA_KEEP_ALIVE=5m
-```
-
-On **Windows** set these as user environment variables via
-*System Properties → Advanced → Environment Variables*, or prepend them
-to the `ollama serve` command in PowerShell:
-
-```powershell
-$env:OLLAMA_MAX_LOADED_MODELS=1
-$env:OLLAMA_NUM_PARALLEL=1
-$env:OLLAMA_KEEP_ALIVE="5m"
-ollama serve
-```
+If you are not using conda, set equivalent environment variables in your shell
+or OS profile before starting `ollama serve`.
 
 ### 4 – Start the server
 
