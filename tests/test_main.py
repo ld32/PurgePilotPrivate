@@ -270,3 +270,87 @@ def test_main_query_subcommand_uses_scan_file(tmp_path, capsys):
 
     assert rc == 0
     assert "old.tar.gz" in capsys.readouterr().out
+
+
+def test_main_query_excludes_important_and_trash_from_ai_input(tmp_path, capsys):
+    scan_file = tmp_path / "scan-rule-based.json"
+    scan_file.write_text(
+        json.dumps(
+            {
+                "root": str(tmp_path),
+                "entries": [
+                    {
+                        "path": "README.md",
+                        "is_dir": False,
+                        "size_bytes": 10,
+                        "modified_at": "2024-01-01T00:00:00+00:00",
+                        "depth": 0,
+                    },
+                    {
+                        "path": "build/output.bin",
+                        "is_dir": False,
+                        "size_bytes": 100,
+                        "modified_at": "2024-01-01T00:00:00+00:00",
+                        "depth": 1,
+                    },
+                    {
+                        "path": "normal.txt",
+                        "is_dir": False,
+                        "size_bytes": 5,
+                        "modified_at": "2024-01-01T00:00:00+00:00",
+                        "depth": 0,
+                    },
+                ],
+            }
+        )
+    )
+
+    custom_config = tmp_path / "config.md"
+    custom_config.write_text(
+        """# PurgePilot Configuration
+
+## AI Prompt
+
+```
+test prompt
+```
+
+## Important Data (Never Purge)
+
+- README.md
+
+## Trash Data (Always Delete)
+
+- build/ (entire directory)
+""",
+        encoding="utf-8",
+    )
+
+    report = _mock_report(str(tmp_path), estimates=[
+        PurgeEstimate(path="normal.txt", confidence=0.4, reason="from ai")
+    ])
+
+    with patch("purge_pilot.main.estimate_purge_confidence", return_value=report) as mock_estimate:
+        rc = main([
+            "query",
+            str(scan_file),
+            "--config",
+            str(custom_config),
+            "--api-url",
+            "http://localhost:11434/v1",
+            "--model",
+            "llama3",
+            "--output",
+            "json",
+        ])
+
+    assert rc == 0
+
+    scan_arg = mock_estimate.call_args[0][0]
+    ai_paths = {entry.path for entry in scan_arg.entries}
+    assert ai_paths == {"normal.txt"}
+
+    data = json.loads(capsys.readouterr().out)
+    by_path = {item["path"]: item for item in data["estimates"]}
+    assert by_path["README.md"]["confidence"] == 0.0
+    assert by_path["build/output.bin"]["confidence"] == 1.0
