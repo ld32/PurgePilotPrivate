@@ -126,7 +126,7 @@ terminal open (or run it as a system service) while using PurgePilot.
 ### 5 – Point PurgePilot at the local server
 
 ```bash
-purge-pilot /path/to/data \
+purgep /path/to/data \
   --api-url http://localhost:11434/v1 \
   --model phi3:mini
 ```
@@ -136,8 +136,8 @@ purge-pilot /path/to/data \
 ## Usage
 
 ```
-purge-pilot scan DIR [DIR ...] [SCAN_OPTIONS]
-purge-pilot query FILE [FILE ...] [QUERY_OPTIONS]
+purgep scan DIR [DIR ...] [SCAN_OPTIONS]
+purgep query FILE [FILE ...] [QUERY_OPTIONS]
 ```
 
 Split mode is the default workflow.
@@ -145,8 +145,8 @@ Split mode is the default workflow.
 If you want to run a full end-to-end pass in one go, run these two commands in serial:
 
 ```bash
-purge-pilot scan /path/to/data --save-scan scan.json --output json
-purge-pilot query scan.json --api-url http://localhost:11434/v1 --model llama3
+purgep scan /path/to/data --save-scan scan.json --output json
+purgep query scan.json --api-url http://localhost:11434/v1 --model llama3
 ```
 
 ### Split scan and AI query (CPU/GPU separation)
@@ -156,13 +156,13 @@ Run the filesystem scan on a CPU machine, then run the LLM query later on a GPU 
 1. Scan only and save JSON:
 
 ```bash
-purge-pilot scan /path/to/data --save-scan scan.json --output json
+purgep scan /path/to/data --save-scan scan.json --output json
 ```
 
 2. Query from the saved scan JSON:
 
 ```bash
-purge-pilot query scan.json \
+purgep query scan.json \
   --api-url http://localhost:11434/v1 \
   --model llama3
 ```
@@ -172,13 +172,13 @@ purge-pilot query scan.json \
 Scan a single directory using a local Ollama server:
 
 ```bash
-purge-pilot /mnt/data/backups --api-url http://localhost:11434/v1 --model llama3
+purgep /mnt/data/backups --api-url http://localhost:11434/v1 --model llama3
 ```
 
 Scan multiple directories and output JSON:
 
 ```bash
-purge-pilot /tmp/logs /var/cache \
+purgep /tmp/logs /var/cache \
   --api-url http://localhost:11434/v1 \
   --model llama3 \
   --output json
@@ -188,7 +188,7 @@ Use the OpenAI API with an API key from an environment variable:
 
 ```bash
 export PURGE_PILOT_API_KEY="sk-..."
-purge-pilot ~/Downloads --api-url https://api.openai.com/v1 --model gpt-4o
+purgep ~/Downloads --api-url https://api.openai.com/v1 --model gpt-4o
 ```
 
 ### Environment variables
