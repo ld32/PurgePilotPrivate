@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import logging
 import os
@@ -11,7 +12,7 @@ import sys
 from pathlib import Path
 from typing import List
 
-from .llm_client import estimate_purge_confidence, _SYSTEM_PROMPT
+from .llm_client import PurgeEstimate, estimate_purge_confidence, _SYSTEM_PROMPT
 from .scanner import ScanResult, scan_directory
 
 
@@ -41,6 +42,76 @@ def parse_config(config_path: Path) -> dict:
             items = [re.sub(r'^\s*-\s*', '', line).strip().strip('`') for line in body.split('\n') if re.match(r'^\s*-\s*', line)]
             config['trash'] = items
     return config
+
+
+def _clean_config_pattern(pattern: str) -> str:
+    cleaned = pattern.strip().strip("`")
+    cleaned = re.sub(r"\s*\([^)]*\)\s*$", "", cleaned)
+    cleaned = cleaned.strip()
+    return cleaned
+
+
+def _to_posix(path: str) -> str:
+    return path.replace("\\", "/").lstrip("./")
+
+
+def _matches_config_pattern(path: str, pattern: str) -> bool:
+    path_norm = _to_posix(path)
+    pattern_norm = _to_posix(_clean_config_pattern(pattern))
+    if not pattern_norm:
+        return False
+
+    is_dir_pattern = pattern_norm.endswith("/")
+    base_pattern = pattern_norm.rstrip("/")
+
+    if is_dir_pattern:
+        if path_norm == base_pattern or path_norm.startswith(base_pattern + "/"):
+            return True
+        if "/" not in base_pattern and base_pattern in path_norm.split("/"):
+            return True
+        return False
+
+    has_glob = any(char in base_pattern for char in "*?[]")
+    if has_glob:
+        return fnmatch.fnmatch(path_norm, base_pattern) or fnmatch.fnmatch(path_norm.split("/")[-1], base_pattern)
+
+    if "/" in base_pattern:
+        return path_norm == base_pattern
+
+    return path_norm.split("/")[-1] == base_pattern
+
+
+def _is_important_path(path: str, config: dict) -> bool:
+    return any(_matches_config_pattern(path, pattern) for pattern in config.get("important", []))
+
+
+def _is_trash_path(path: str, config: dict) -> bool:
+    return any(_matches_config_pattern(path, pattern) for pattern in config.get("trash", []))
+
+
+def _filter_important_scan_entries(scan_result: ScanResult, config: dict) -> ScanResult:
+    filtered_entries = [entry for entry in scan_result.entries if not _is_important_path(entry.path, config)]
+    return ScanResult(root=scan_result.root, entries=filtered_entries)
+
+
+def _ensure_trash_entries_in_report(report, scan_result: ScanResult, config: dict) -> None:
+    seen = {estimate.path for estimate in report.estimates}
+    for estimate in report.estimates:
+        if _is_trash_path(estimate.path, config):
+            estimate.confidence = 1.0
+            estimate.reason = "Always delete as per config"
+
+    for entry in scan_result.entries:
+        if entry.path in seen:
+            continue
+        if _is_trash_path(entry.path, config):
+            report.estimates.append(
+                PurgeEstimate(
+                    path=entry.path,
+                    confidence=1.0,
+                    reason="Always delete as per config",
+                )
+            )
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -153,6 +224,7 @@ def _build_subcommand_parser() -> argparse.ArgumentParser:
     scan_parser.add_argument("--include-hidden", action="store_true")
     scan_parser.add_argument("--output", choices=["text", "json"], default="text")
     scan_parser.add_argument("--save-scan", metavar="FILE")
+    scan_parser.add_argument("--config", default="purge_config.md")
     scan_parser.add_argument("-v", "--verbose", action="store_true")
 
     query_parser = subparsers.add_parser(
@@ -233,6 +305,7 @@ def main(argv: List[str] | None = None) -> int:
             translated_argv = [*subcommand_args.directories, "--scan-only"]
             translated_argv.extend(["--max-depth", str(subcommand_args.max_depth)])
             translated_argv.extend(["--output", subcommand_args.output])
+            translated_argv.extend(["--config", subcommand_args.config])
             if subcommand_args.include_hidden:
                 translated_argv.append("--include-hidden")
             if subcommand_args.save_scan:
@@ -286,16 +359,12 @@ def main(argv: List[str] | None = None) -> int:
         parser.error("At least one DIR is required unless --from-scan is used.")
 
     exit_code = 0
-    config = {}
-    system_prompt = _SYSTEM_PROMPT
-
-    if not args.scan_only:
-        config_path = Path(args.config)
-        if not config_path.exists():
-            print(f"ERROR: Config file not found: {config_path}", file=sys.stderr)
-            return 1
-        config = parse_config(config_path)
-        system_prompt = config.get("prompt", _SYSTEM_PROMPT)
+    config_path = Path(args.config)
+    if not config_path.exists():
+        print(f"ERROR: Config file not found: {config_path}", file=sys.stderr)
+        return 1
+    config = parse_config(config_path)
+    system_prompt = config.get("prompt", _SYSTEM_PROMPT)
 
     if args.from_scan:
         for scan_file in args.from_scan:
@@ -307,13 +376,14 @@ def main(argv: List[str] | None = None) -> int:
 
             print(f"Loading scan data from {scan_path.resolve()} …", file=sys.stderr)
             try:
-                scan_result = _load_scan_result(scan_path)
+                scan_result = _filter_important_scan_entries(_load_scan_result(scan_path), config)
                 report = _query_scan_result(args, scan_result, system_prompt)
             except Exception as exc:  # noqa: BLE001
                 print(f"ERROR: Failed to query from scan file {scan_file}: {exc}", file=sys.stderr)
                 exit_code = 1
                 continue
 
+            _ensure_trash_entries_in_report(report, scan_result, config)
             _apply_config_overrides(report, config)
 
             if args.output == "json":
@@ -343,6 +413,7 @@ def main(argv: List[str] | None = None) -> int:
                 max_depth=args.max_depth,
                 include_hidden=args.include_hidden,
             )
+            scan_result = _filter_important_scan_entries(scan_result, config)
         except Exception as exc:  # noqa: BLE001
             print(f"ERROR: Failed to scan {directory}: {exc}", file=sys.stderr)
             exit_code = 1
@@ -360,6 +431,7 @@ def main(argv: List[str] | None = None) -> int:
             exit_code = 1
             continue
 
+        _ensure_trash_entries_in_report(report, scan_result, config)
         _apply_config_overrides(report, config)
 
         if args.output == "json":
