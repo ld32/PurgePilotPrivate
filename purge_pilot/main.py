@@ -433,6 +433,8 @@ def main(argv: List[str] | None = None) -> int:
             translated_argv.extend(["--max-depth", str(subcommand_args.max_depth)])
             translated_argv.extend(["--output", subcommand_args.output])
             translated_argv.extend(["--config", subcommand_args.config])
+            if subcommand_args.save_commands:
+                translated_argv.extend(["--save-commands", subcommand_args.save_commands])
             if subcommand_args.include_hidden:
                 translated_argv.append("--include-hidden")
             if subcommand_args.save_scan:
@@ -447,6 +449,8 @@ def main(argv: List[str] | None = None) -> int:
             translated_argv.extend(["--output", subcommand_args.output])
             translated_argv.extend(["--timeout", str(subcommand_args.timeout)])
             translated_argv.extend(["--config", subcommand_args.config])
+            if subcommand_args.save_commands:
+                translated_argv.extend(["--save-commands", subcommand_args.save_commands])
             if subcommand_args.api_key:
                 translated_argv.extend(["--api-key", subcommand_args.api_key])
             if subcommand_args.verbose:
@@ -472,6 +476,10 @@ def main(argv: List[str] | None = None) -> int:
 
     if args.save_scan and args.from_scan:
         print("ERROR: --save-scan is only valid while scanning directories.", file=sys.stderr)
+        return 1
+
+    if args.scan_only and args.save_commands:
+        print("ERROR: --save-commands requires an LLM query step and cannot be combined with --scan-only.", file=sys.stderr)
         return 1
 
     if args.directories and not args.scan_only and not args.from_scan:
