@@ -202,8 +202,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--config",
-        default="purge_config.md",
-        help="Path to the configuration markdown file (default: purge_config.md).",
+        default="config.md",
+        help="Path to the configuration markdown file (default: config.md).",
     )
     parser.add_argument(
         "--scan-only",
@@ -241,7 +241,7 @@ def _build_subcommand_parser() -> argparse.ArgumentParser:
     scan_parser.add_argument("--include-hidden", action="store_true")
     scan_parser.add_argument("--output", choices=["text", "json"], default="text")
     scan_parser.add_argument("--save-scan", metavar="FILE")
-    scan_parser.add_argument("--config", default="purge_config.md")
+    scan_parser.add_argument("--config", default="config.md")
     scan_parser.add_argument("-v", "--verbose", action="store_true")
 
     query_parser = subparsers.add_parser(
@@ -264,7 +264,7 @@ def _build_subcommand_parser() -> argparse.ArgumentParser:
     query_parser.add_argument("--threshold", type=float, default=0.7, metavar="FLOAT")
     query_parser.add_argument("--output", choices=["text", "json"], default="text")
     query_parser.add_argument("--timeout", type=int, default=120, metavar="SECONDS")
-    query_parser.add_argument("--config", default="purge_config.md")
+    query_parser.add_argument("--config", default="config.md")
     query_parser.add_argument("-v", "--verbose", action="store_true")
 
     return parser

@@ -2,7 +2,7 @@
 set -eu
 
 set -x 
-
+ 
 # Watch the current repository by default; override with WATCH_DIR.
 WATCH_DIR="${WATCH_DIR:-$(pwd)}"
 
@@ -24,21 +24,21 @@ echo "Auto-pushing to branch: $branch"
 auto_push() {
   changed_file="$1"
 
-  git -C "$WATCH_DIR" add -A
+  git -C "$WATCH_DIR" add -A 
 
   if git -C "$WATCH_DIR" diff --cached --quiet; then
     return 0  
   fi
 
-  git -C "$WATCH_DIR" commit -m "chore(auto): update ${changed_file} at $(date '+%Y-%m-%d %H:%M:%S')" >/dev/null 2>&1 || true
+  git -C "$WATCH_DIR" commit -m "Update ${changed_file} at $(date '+%Y-%m-%d %H:%M:%S')" >/dev/null 2>&1 || true
   git -C "$WATCH_DIR" push origin "$branch"
-}
-
+} 
+ 
 inotifywait -m -r -e close_write \
   --exclude '(vendor|\.git|\.vscode|node_modules|autoUpload\.sh|\.json)' \
   "$WATCH_DIR" | while read -r path action file; do
   if [ -n "$file" ]; then
     echo "[$(date '+%H:%M:%S')] ${action} ${path}${file}"
     auto_push "${file}"
-  fi
-done
+  fi 
+done 
