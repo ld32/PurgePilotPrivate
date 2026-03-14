@@ -500,6 +500,7 @@ def main(argv: List[str] | None = None) -> int:
         return 1
     config = parse_config(config_path)
     system_prompt = config.get("prompt", _SYSTEM_PROMPT)
+    command_sections: list[list[str]] = []
 
     if args.from_scan:
         for scan_file in args.from_scan:
@@ -521,11 +522,23 @@ def main(argv: List[str] | None = None) -> int:
 
             _ensure_rule_based_entries_in_report(report, full_scan_result, config)
             _apply_config_overrides(report, config)
+            if args.save_commands:
+                command_sections.append(
+                    _build_review_commands(report, full_scan_result, config, threshold=args.threshold)
+                )
 
             if args.output == "json":
                 print(json.dumps(report.to_dict(), indent=2))
             else:
                 _print_text_report(report, threshold=args.threshold)
+
+        if args.save_commands:
+            command_file = Path(args.save_commands)
+            action_count = _write_review_commands(command_file, command_sections)
+            print(
+                f"Saved {action_count} review commands to {command_file.resolve()}",
+                file=sys.stderr,
+            )
 
         return exit_code
 
@@ -569,6 +582,10 @@ def main(argv: List[str] | None = None) -> int:
 
         _ensure_rule_based_entries_in_report(report, scan_result, config)
         _apply_config_overrides(report, config)
+        if args.save_commands:
+            command_sections.append(
+                _build_review_commands(report, scan_result, config, threshold=args.threshold)
+            )
 
         if args.output == "json":
             print(json.dumps(report.to_dict(), indent=2))
@@ -597,6 +614,14 @@ def main(argv: List[str] | None = None) -> int:
                     f"{len(result.entries)} entries, "
                     f"{result.total_size_bytes:,} bytes"
                 )
+
+    if args.save_commands and command_sections:
+        command_file = Path(args.save_commands)
+        action_count = _write_review_commands(command_file, command_sections)
+        print(
+            f"Saved {action_count} review commands to {command_file.resolve()}",
+            file=sys.stderr,
+        )
 
     return exit_code
 
