@@ -38,7 +38,6 @@ location first, instead of being immediately hard-deleted.
 ## Recycle Bin Path
 
 Set the destination path used for recycled items.
-
 - .purgepilot/recycle_bin
 
 ## Trash Data (Always Delete)
