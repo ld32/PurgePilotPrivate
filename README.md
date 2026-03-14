@@ -152,7 +152,7 @@ purgep query scan.json --api-url http://localhost:11434/v1 --model llama3
 ### Split scan and AI query (CPU/GPU separation)
 
 Run the filesystem scan on a CPU machine, then run the LLM query later on a GPU machine.
-Paths listed in `purge_config.md` under Important and Trash are handled by rules
+Paths listed in `config.md` under Important and Trash are handled by rules
 and are not sent to the AI query.
 
 1. Scan only and save JSON:
