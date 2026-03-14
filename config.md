@@ -15,7 +15,7 @@ You are an AI assistant tasked with analyzing a codebase to identify files and f
 For each file/folder, provide a confidence score (0-100) and a brief explanation. Only suggest purging if confidence is above 80.
 ```
 
-## Important Data (Never Purge)
+## Important Data (Never purge or move)
 
 This section lists folders and files that should never be purged under any circumstances. These are critical to the project's functionality or integrity.
 
@@ -26,7 +26,7 @@ This section lists folders and files that should never be purged under any circu
 - tests/ (entire directory)
 - .git/ (if present)
 
-## Recycle Bin Data (Move to Recycle Bin)
+## Recycle Bin Data (Move to recycle bin)
 
 This section lists files and folders that should be moved to a recycle bin
 location first, instead of being immediately hard-deleted.
