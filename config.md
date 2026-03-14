@@ -31,7 +31,7 @@ This section lists folders and files that should never be purged under any circu
 This section lists files and folders that should be moved to a recycle bin
 location first, instead of being immediately hard-deleted.
 
-- Downloads/
+- ~/Downloads/
 - old_exports/
 - archive_staging/
 
@@ -39,7 +39,7 @@ location first, instead of being immediately hard-deleted.
 
 Set the destination path used for recycled items.
 
-- $HOME/.purgepilot/recycle_bin
+- ~/.purgepilot/recycle_bin
 
 ## Trash Data (Always delete)
 
