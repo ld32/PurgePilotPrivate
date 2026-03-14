@@ -257,6 +257,11 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="FILE",
         help="Load one or more scan JSON files and only run the LLM query step.",
     )
+    parser.add_argument(
+        "--save-commands",
+        metavar="FILE",
+        help="Write suggested review commands to a shell script instead of touching data.",
+    )
     return parser
 
 
@@ -277,6 +282,7 @@ def _build_subcommand_parser() -> argparse.ArgumentParser:
     scan_parser.add_argument("--include-hidden", action="store_true")
     scan_parser.add_argument("--output", choices=["text", "json"], default="text")
     scan_parser.add_argument("--save-scan", metavar="FILE")
+    scan_parser.add_argument("--save-commands", metavar="FILE")
     scan_parser.add_argument("--config", default="config.md")
     scan_parser.add_argument("-v", "--verbose", action="store_true")
 
@@ -300,6 +306,7 @@ def _build_subcommand_parser() -> argparse.ArgumentParser:
     query_parser.add_argument("--threshold", type=float, default=0.7, metavar="FLOAT")
     query_parser.add_argument("--output", choices=["text", "json"], default="text")
     query_parser.add_argument("--timeout", type=int, default=120, metavar="SECONDS")
+    query_parser.add_argument("--save-commands", metavar="FILE")
     query_parser.add_argument("--config", default="config.md")
     query_parser.add_argument("-v", "--verbose", action="store_true")
 
