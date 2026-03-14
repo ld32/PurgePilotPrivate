@@ -26,19 +26,6 @@ This section lists folders and files that should never be purged under any circu
 - tests/ (entire directory)
 - .git/ (if present)
 
-## Trash Data (Always Delete)
-
-This section lists folders and files that should always be deleted during the purge process. These are typically temporary, generated, or unnecessary files.
-
-- __pycache__/
-- *.pyc
-- *.pyo
-- .pytest_cache/
-- build/
-- dist/
-- *.log
-- *.tmp
-
 ## Recycle Bin Data (Move to Recycle Bin)
 
 This section lists files and folders that should be moved to a recycle bin
@@ -53,3 +40,16 @@ location first, instead of being immediately hard-deleted.
 Set the destination path used for recycled items.
 
 - .purgepilot/recycle_bin
+
+## Trash Data (Always Delete)
+
+This section lists folders and files that should always be deleted during the purge process. These are typically temporary, generated, or unnecessary files.
+
+- __pycache__/
+- *.pyc
+- *.pyo
+- .pytest_cache/
+- build/
+- dist/
+- *.log
+- *.tmp
