@@ -35,6 +35,6 @@ This section lists folders and files that should always be deleted during the pu
 - *.pyo
 - .pytest_cache/
 - build/
-- dist/
-- *.log
-- *.tmp
+dist/
+*.log
+*.tmp
