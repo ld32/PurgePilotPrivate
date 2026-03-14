@@ -30,7 +30,7 @@ This section lists folders and files that should never be purged under any circu
 
 This section lists folders and files that should always be deleted during the purge process. These are typically temporary, generated, or unnecessary files.
 
-- __pycache__/ (entire directory)
+- __pycache__/
 - *.pyc
 - *.pyo
 - .pytest_cache/
