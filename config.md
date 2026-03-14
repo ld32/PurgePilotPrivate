@@ -39,7 +39,7 @@ location first, instead of being immediately hard-deleted.
 
 Set the destination path used for recycled items.
 
-- .purgepilot/recycle_bin
+- $HOME/.purgepilot/recycle_bin
 
 ## Trash Data (Always delete)
 
