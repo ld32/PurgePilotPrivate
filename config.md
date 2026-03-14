@@ -41,7 +41,7 @@ Set the destination path used for recycled items.
 
 - .purgepilot/recycle_bin
 
-## Trash Data (Always Delete)
+## Trash Data (Always delete)
 
 This section lists folders and files that should always be deleted during the purge process. These are typically temporary, generated, or unnecessary files.
 
