@@ -38,3 +38,18 @@ This section lists folders and files that should always be deleted during the pu
 - dist/
 - *.log
 - *.tmp
+
+## Recycle Bin Data (Move to Recycle Bin)
+
+This section lists files and folders that should be moved to a recycle bin
+location first, instead of being immediately hard-deleted.
+
+- Downloads/
+- old_exports/
+- archive_staging/
+
+## Recycle Bin Path
+
+Set the destination path used for recycled items.
+
+- .purgepilot/recycle_bin
