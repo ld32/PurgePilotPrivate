@@ -300,6 +300,13 @@ def test_main_query_excludes_important_and_trash_from_ai_input(tmp_path, capsys)
                         "modified_at": "2024-01-01T00:00:00+00:00",
                         "depth": 0,
                     },
+                    {
+                        "path": "old_exports/data.zip",
+                        "is_dir": False,
+                        "size_bytes": 7,
+                        "modified_at": "2024-01-01T00:00:00+00:00",
+                        "depth": 1,
+                    },
                 ],
             }
         )
@@ -322,6 +329,14 @@ test prompt
 ## Trash Data (Always Delete)
 
 - build/ (entire directory)
+
+## Recycle Bin Data (Move to Recycle Bin)
+
+- old_exports/
+
+## Recycle Bin Path
+
+- .purgepilot/recycle_bin
 """,
         encoding="utf-8",
     )
@@ -354,3 +369,6 @@ test prompt
     by_path = {item["path"]: item for item in data["estimates"]}
     assert by_path["README.md"]["confidence"] == 0.0
     assert by_path["build/output.bin"]["confidence"] == 1.0
+    assert by_path["old_exports/data.zip"]["confidence"] == 0.9
+    assert "Move to recycle bin as per config" in by_path["old_exports/data.zip"]["reason"]
+    assert ".purgepilot/recycle_bin" in by_path["old_exports/data.zip"]["reason"]
