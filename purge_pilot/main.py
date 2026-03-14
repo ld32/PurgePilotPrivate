@@ -41,6 +41,20 @@ def parse_config(config_path: Path) -> dict:
         elif 'Trash Data' in title:
             items = [re.sub(r'^\s*-\s*', '', line).strip().strip('`') for line in body.split('\n') if re.match(r'^\s*-\s*', line)]
             config['trash'] = items
+        elif 'Recycle Bin Data' in title:
+            items = [re.sub(r'^\s*-\s*', '', line).strip().strip('`') for line in body.split('\n') if re.match(r'^\s*-\s*', line)]
+            config['recycle_bin'] = items
+        elif 'Recycle Bin Path' in title:
+            path_value = next(
+                (
+                    re.sub(r'^\s*-\s*', '', line).strip().strip('`')
+                    for line in body.split('\n')
+                    if re.match(r'^\s*-\s*', line)
+                ),
+                '',
+            )
+            if path_value:
+                config['recycle_bin_path'] = path_value
     return config
 
 
@@ -89,11 +103,17 @@ def _is_trash_path(path: str, config: dict) -> bool:
     return any(_matches_config_pattern(path, pattern) for pattern in config.get("trash", []))
 
 
+def _is_recycle_bin_path(path: str, config: dict) -> bool:
+    return any(_matches_config_pattern(path, pattern) for pattern in config.get("recycle_bin", []))
+
+
 def _filter_ai_scan_entries(scan_result: ScanResult, config: dict) -> ScanResult:
     filtered_entries = [
         entry
         for entry in scan_result.entries
-        if not _is_important_path(entry.path, config) and not _is_trash_path(entry.path, config)
+        if not _is_important_path(entry.path, config)
+        and not _is_trash_path(entry.path, config)
+        and not _is_recycle_bin_path(entry.path, config)
     ]
     return ScanResult(root=scan_result.root, entries=filtered_entries)
 
@@ -108,6 +128,11 @@ def _ensure_rule_based_entries_in_report(report, full_scan_result: ScanResult, c
         if _is_trash_path(estimate.path, config):
             estimate.confidence = 1.0
             estimate.reason = "Always delete as per config"
+            continue
+        if _is_recycle_bin_path(estimate.path, config):
+            estimate.confidence = 0.9
+            recycle_bin_path = config.get("recycle_bin_path", ".purgepilot/recycle_bin")
+            estimate.reason = f"Move to recycle bin as per config ({recycle_bin_path})"
 
     for entry in full_scan_result.entries:
         if entry.path in seen:
@@ -127,6 +152,16 @@ def _ensure_rule_based_entries_in_report(report, full_scan_result: ScanResult, c
                     path=entry.path,
                     confidence=1.0,
                     reason="Always delete as per config",
+                )
+            )
+            continue
+        if _is_recycle_bin_path(entry.path, config):
+            recycle_bin_path = config.get("recycle_bin_path", ".purgepilot/recycle_bin")
+            report.estimates.append(
+                PurgeEstimate(
+                    path=entry.path,
+                    confidence=0.9,
+                    reason=f"Move to recycle bin as per config ({recycle_bin_path})",
                 )
             )
 
@@ -286,6 +321,10 @@ def _apply_config_overrides(report, config: dict) -> None:
         elif _is_trash_path(est.path, config):
             est.confidence = 1.0
             est.reason = "Always delete as per config"
+        elif _is_recycle_bin_path(est.path, config):
+            est.confidence = 0.9
+            recycle_bin_path = config.get("recycle_bin_path", ".purgepilot/recycle_bin")
+            est.reason = f"Move to recycle bin as per config ({recycle_bin_path})"
 
 
 def _query_scan_result(args, scan_result: ScanResult, system_prompt: str):
