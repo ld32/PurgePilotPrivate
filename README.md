@@ -169,6 +169,19 @@ purgep query scan.json \
   --model llama3
 ```
 
+3. Generate a review script instead of touching data:
+
+```bash
+purgep query scan.json \
+  --api-url http://localhost:11434/v1 \
+  --model llama3 \
+  --save-commands review-purge.sh
+```
+
+The generated script contains suggested `mv`/`rm` commands only. PurgePilot
+does not execute them automatically; review the file first, then run it
+yourself if it looks correct.
+
 ### Examples
 
 Scan a single directory using a local Ollama server:
@@ -209,6 +222,7 @@ purgep ~/Downloads --api-url https://api.openai.com/v1 --model gpt-4o
 | `--scan-only` | *(off)* | Only scan directories and output scan data (skip LLM query) |
 | `--save-scan FILE` | *(none)* | Save scan JSON to a file (single directory only) |
 | `--from-scan FILE [FILE ...]` | *(none)* | Load saved scan JSON and run only the LLM query step |
+| `--save-commands FILE` | *(none)* | Write suggested review commands to a shell script |
 | `--api-url URL` | `http://localhost:11434/v1` | OpenAI-compatible API base URL |
 | `--model NAME` | `llama3` | LLM model name |
 | `--api-key TOKEN` | *(none)* | Bearer token for the API |
